@@ -30,8 +30,6 @@ if ( "getBoundingClientRect" in document.documentElement ) {
 
 		// Make sure we're not dealing with a disconnected DOM node
 		if ( !box || !jQuery.contains( docElem, elem ) ) {
-			// Always create a new object because the one returned by getBoundingClientRect()
-			// has non writable properties
 			return box ? { top: box.top, left: box.left } : { top: 0, left: 0 };
 		}
 
