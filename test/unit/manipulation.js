@@ -871,6 +871,31 @@ test("replaceAll(String|Element|Array&lt;Element&gt;|jQuery)", function() {
 	ok( !jQuery("#yahoo")[0], 'Verify that original element is gone, after set of elements' );
 });
 
+test("jQuery.clone() (#8017)", function() {
+
+	expect(2);
+
+	ok( jQuery.clone && jQuery.isFunction( jQuery.clone ) , "jQuery.clone() utility exists and is a function.");
+
+	var main = jQuery("#main")[0],
+			clone = jQuery.clone( main );
+
+	equals( main.childNodes.length, clone.childNodes.length, "Simple child length to ensure a large dom tree copies correctly" );
+});
+
+test("clone() (#8070)", function () {
+	expect(2);
+
+	jQuery('<select class="test8070"></select><select class="test8070"></select>').appendTo('#main');
+	var selects = jQuery('.test8070');
+	selects.append('<OPTION>1</OPTION><OPTION>2</OPTION>');
+
+	equals( selects[0].childNodes.length, 2, "First select got two nodes" );
+	equals( selects[1].childNodes.length, 2, "Second select got two nodes" );
+
+	selects.remove();
+});
+
 test("clone()", function() {
 	expect(37);
 	equals( 'This is a normal link: Yahoo', jQuery('#en').text(), 'Assert text for #en' );
@@ -928,6 +953,17 @@ test("clone()", function() {
 	div.remove();
 	clone.remove();
 
+	var divEvt = jQuery("<div><ul><li>test</li></ul></div>").click(function(){
+		ok( false, "Bound event still exists after .clone()." );
+	}),
+		cloneEvt = divEvt.clone();
+
+	// Make sure that doing .clone() doesn't clone events
+	cloneEvt.trigger("click");
+
+	cloneEvt.remove();
+	divEvt.remove();
+
 	// this is technically an invalid object, but because of the special
 	// classid instantiation it is the only kind that IE has trouble with,
 	// so let's test with it too.
@@ -970,7 +1006,7 @@ test("clone()", function() {
 
 test("clone(form element) (Bug #3879, #6655)", function() {
 	expect(6);
-	element = jQuery("<select><option>Foo</option><option selected>Bar</option></select>");
+	var element = jQuery("<select><option>Foo</option><option selected>Bar</option></select>");
 
 	equals( element.clone().find("option:selected").val(), element.find("option:selected").val(), "Selected option cloned correctly" );
 
@@ -988,6 +1024,14 @@ test("clone(form element) (Bug #3879, #6655)", function() {
 	element = jQuery("<textarea>foo</textarea>");
 	clone = element.clone();
 	equals( clone[0].defaultValue, "foo", "Textarea defaultValue cloned correctly" );
+});
+
+test("clone(multiple selected options) (Bug #8129)", function() {
+	expect(1);
+	var element = jQuery("<select><option>Foo</option><option selected>Bar</option><option selected>Baz</option></select>");
+
+	equals( element.clone().find("option:selected").length, element.find("option:selected").length, "Multiple selected options cloned correctly" );
+
 });
 
 if (!isLocal) {

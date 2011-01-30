@@ -19,19 +19,12 @@ var jQuery = function( selector, context ) {
 	// (both of which we optimize for)
 	quickExpr = /^(?:[^<]*(<[\w\W]+>)[^>]*$|#([\w\-]+)$)/,
 
-	// Is it a simple selector
-	isSimple = /^.[^:#\[\.,]*$/,
-
 	// Check if a string has a non-whitespace character in it
 	rnotwhite = /\S/,
-	rwhite = /\s/,
 
 	// Used for trimming whitespace
 	trimLeft = /^\s+/,
 	trimRight = /\s+$/,
-
-	// Check for non-word characters
-	rnonword = /\W/,
 
 	// Check for digits
 	rdigit = /\d/,
@@ -63,8 +56,16 @@ var jQuery = function( selector, context ) {
 	// The deferred used on DOM ready
 	readyList,
 
-	// Promise methods
-	promiseMethods = "then done fail isResolved isRejected promise".split( " " ),
+	// Promise methods (with equivalent for invert)
+	promiseMethods = {
+		then: 0, // will be overwritten for invert
+		done: "fail",
+		fail: "done",
+		isResolved: "isRejected",
+		isRejected: "isResolved",
+		promise: "invert",
+		invert: "promise"
+	},
 
 	// The ready event handler
 	DOMContentLoaded,
@@ -134,7 +135,7 @@ jQuery.fn = jQuery.prototype = {
 
 					} else {
 						ret = jQuery.buildFragment( [ match[1] ], [ doc ] );
-						selector = (ret.cacheable ? jQuery(ret.fragment).clone()[0] : ret.fragment).childNodes;
+						selector = (ret.cacheable ? jQuery.clone(ret.fragment) : ret.fragment).childNodes;
 					}
 
 					return jQuery.merge( this, selector );
@@ -161,13 +162,6 @@ jQuery.fn = jQuery.prototype = {
 					this.selector = selector;
 					return this;
 				}
-
-			// HANDLE: $("TAG")
-			} else if ( !context && !rnonword.test( selector ) ) {
-				this.selector = selector;
-				this.context = document;
-				selector = document.getElementsByTagName( selector );
-				return jQuery.merge( this, selector );
 
 			// HANDLE: $(expr, $(...))
 			} else if ( !context || context.jquery ) {
@@ -258,12 +252,14 @@ jQuery.fn = jQuery.prototype = {
 		return jQuery.each( this, callback, args );
 	},
 
-	ready: function() {
+	ready: function( fn ) {
 		// Attach the listeners
 		jQuery.bindReady();
 
-		// Change ready & apply
-		return ( jQuery.fn.ready = readyList.done ).apply( this , arguments );
+		// Add the callback
+		readyList.done( fn );
+
+		return this;
 	},
 
 	eq: function( i ) {
@@ -410,7 +406,7 @@ jQuery.extend({
 			}
 
 			// If there are functions bound, to execute
-			readyList.fire( document , [ jQuery ] );
+			readyList.resolveWith( document, [ jQuery ] );
 
 			// Trigger any bound ready events
 			if ( jQuery.fn.trigger ) {
@@ -808,7 +804,6 @@ jQuery.extend({
 
 	// Create a simple deferred (one callbacks list)
 	_Deferred: function() {
-
 		var // callbacks list
 			callbacks = [],
 			// stored [ context , args ]
@@ -821,53 +816,45 @@ jQuery.extend({
 			deferred  = {
 
 				// done( f1, f2, ...)
-				done: function () {
-
-					if ( ! cancelled ) {
-
+				done: function() {
+					if ( !cancelled ) {
 						var args = arguments,
 							i,
 							length,
 							elem,
 							type,
 							_fired;
-
 						if ( fired ) {
 							_fired = fired;
 							fired = 0;
 						}
-
-						for ( i = 0, length = args.length ; i < length ; i++ ) {
+						for ( i = 0, length = args.length; i < length; i++ ) {
 							elem = args[ i ];
 							type = jQuery.type( elem );
 							if ( type === "array" ) {
-								deferred.done.apply( deferred , elem );
+								deferred.done.apply( deferred, elem );
 							} else if ( type === "function" ) {
 								callbacks.push( elem );
 							}
 						}
-
 						if ( _fired ) {
-							deferred.fire( _fired[ 0 ] , _fired[ 1 ] );
+							deferred.resolveWith( _fired[ 0 ], _fired[ 1 ] );
 						}
 					}
-
 					return this;
 				},
 
 				// resolve with given context and args
-				fire: function( context , args ) {
-					if ( ! cancelled && ! fired && ! firing ) {
-
+				resolveWith: function( context, args ) {
+					if ( !cancelled && !fired && !firing ) {
 						firing = 1;
-
 						try {
 							while( callbacks[ 0 ] ) {
-								callbacks.shift().apply( context , args );
+								callbacks.shift().apply( context, args );
 							}
 						}
 						finally {
-							fired = [ context , args ];
+							fired = [ context, args ];
 							firing = 0;
 						}
 					}
@@ -876,7 +863,7 @@ jQuery.extend({
 
 				// resolve with this as context and given arguments
 				resolve: function() {
-					deferred.fire( jQuery.isFunction( this.promise ) ? this.promise() : this , arguments );
+					deferred.resolveWith( jQuery.isFunction( this.promise ) ? this.promise() : this, arguments );
 					return this;
 				},
 
@@ -897,54 +884,62 @@ jQuery.extend({
 	},
 
 	// Full fledged deferred (two callbacks list)
-	// Typical success/error system
 	Deferred: function( func ) {
-
 		var deferred = jQuery._Deferred(),
 			failDeferred = jQuery._Deferred(),
-			promise;
-
-		// Add errorDeferred methods, then and promise
-		jQuery.extend( deferred , {
-
-			then: function( doneCallbacks , failCallbacks ) {
+			promise,
+			invert;
+		// Add errorDeferred methods, then, promise and invert
+		jQuery.extend( deferred, {
+			then: function( doneCallbacks, failCallbacks ) {
 				deferred.done( doneCallbacks ).fail( failCallbacks );
 				return this;
 			},
 			fail: failDeferred.done,
-			fireReject: failDeferred.fire,
+			rejectWith: failDeferred.resolveWith,
 			reject: failDeferred.resolve,
 			isRejected: failDeferred.isResolved,
 			// Get a promise for this deferred
 			// If obj is provided, the promise aspect is added to the object
-			// (i is used internally)
-			promise: function( obj , i ) {
+			promise: function( obj ) {
 				if ( obj == null ) {
 					if ( promise ) {
 						return promise;
 					}
 					promise = obj = {};
 				}
-				i = promiseMethods.length;
-				while( i-- ) {
-					obj[ promiseMethods[ i ] ] = deferred[ promiseMethods[ i ] ];
+				for( var methodName in promiseMethods ) {
+					obj[ methodName ] = deferred[ methodName ];
 				}
 				return obj;
+			},
+			// Get the invert promise for this deferred
+			// If obj is provided, the invert promise aspect is added to the object
+			invert: function( obj ) {
+				if ( obj == null ) {
+					if ( invert ) {
+						return invert;
+					}
+					invert = obj = {};
+				}
+				for( var methodName in promiseMethods ) {
+					obj[ methodName ] = promiseMethods[ methodName ] && deferred[ promiseMethods[methodName] ];
+				}
+				obj.then = invert.then || function( doneCallbacks, failCallbacks ) {
+					deferred.done( failCallbacks ).fail( doneCallbacks );
+					return this;
+				};
+				return obj;
 			}
-
 		} );
-
 		// Make sure only one callback list will be used
-		deferred.then( failDeferred.cancel , deferred.cancel );
-
+		deferred.then( failDeferred.cancel, deferred.cancel );
 		// Unexpose cancel
 		delete deferred.cancel;
-
 		// Call given func if any
 		if ( func ) {
-			func.call( deferred , deferred );
+			func.call( deferred, deferred );
 		}
-
 		return deferred;
 	},
 
@@ -960,18 +955,14 @@ jQuery.extend({
 
 		if ( length > 1 ) {
 			resolveArray = new Array( length );
-			jQuery.each( args, function( index, element, args ) {
-				jQuery.when( element ).done( function( value ) {
-					args = arguments;
-					resolveArray[ index ] = args.length > 1 ? slice.call( args , 0 ) : value;
+			jQuery.each( args, function( index, element ) {
+				jQuery.when( element ).then( function( value ) {
+					resolveArray[ index ] = arguments.length > 1 ? slice.call( arguments, 0 ) : value;
 					if( ! --length ) {
-						deferred.fire( promise, resolveArray );
+						deferred.resolveWith( promise, resolveArray );
 					}
-				}).fail( function() {
-					deferred.fireReject( promise, arguments );
-				});
-				return !deferred.isRejected();
-			});
+				}, deferred.reject );
+			} );
 		} else if ( deferred !== object ) {
 			deferred.resolve( object );
 		}
@@ -992,18 +983,20 @@ jQuery.extend({
 		return { browser: match[1] || "", version: match[2] || "0" };
 	},
 
-	subclass: function(){
+	sub: function() {
 		function jQuerySubclass( selector, context ) {
 			return new jQuerySubclass.fn.init( selector, context );
 		}
+		jQuery.extend( true, jQuerySubclass, this );
 		jQuerySubclass.superclass = this;
 		jQuerySubclass.fn = jQuerySubclass.prototype = this();
 		jQuerySubclass.fn.constructor = jQuerySubclass;
 		jQuerySubclass.subclass = this.subclass;
 		jQuerySubclass.fn.init = function init( selector, context ) {
-			if (context && context instanceof jQuery && !(context instanceof jQuerySubclass)){
+			if ( context && context instanceof jQuery && !(context instanceof jQuerySubclass) ) {
 				context = jQuerySubclass(context);
 			}
+
 			return jQuery.fn.init.call( this, selector, context, rootjQuerySubclass );
 		};
 		jQuerySubclass.fn.init.prototype = jQuerySubclass.fn;
@@ -1039,9 +1032,8 @@ if ( indexOf ) {
 	};
 }
 
-// Verify that \s matches non-breaking spaces
-// (IE fails on this test)
-if ( !rwhite.test( "\xA0" ) ) {
+// IE doesn't match non-breaking spaces with \s
+if ( rnotwhite.test( "\xA0" ) ) {
 	trimLeft = /^[\s\xA0]+/;
 	trimRight = /[\s\xA0]+$/;
 }

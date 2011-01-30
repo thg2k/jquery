@@ -75,7 +75,7 @@
 	jQuery.support.optDisabled = !opt.disabled;
 
 	jQuery.support.scriptEval = function() {
-		if ( jQuery.support._scriptEval === null) {
+		if ( jQuery.support._scriptEval === null ) {
 			var root = document.documentElement,
 				script = document.createElement("script"),
 				id = "script" + jQuery.now();
@@ -101,6 +101,7 @@
 			// release memory in IE
 			root = script = id  = null;
 		}
+
 		return jQuery.support._scriptEval;
 	};
 
@@ -135,10 +136,16 @@
 	// Figure out if the W3C box model works as expected
 	// document.body must exist before we can do this
 	jQuery(function() {
-		var div = document.createElement("div");
-		div.style.width = div.style.paddingLeft = "1px";
+		var div = document.createElement("div"),
+			body = document.getElementsByTagName("body")[0];
 
-		document.body.appendChild( div );
+		// Frameset documents with no body should not run this code
+		if ( !body ) {
+			return;
+		}
+
+		div.style.width = div.style.paddingLeft = "1px";
+		body.appendChild( div );
 		jQuery.boxModel = jQuery.support.boxModel = div.offsetWidth === 2;
 
 		if ( "zoom" in div.style ) {
@@ -177,7 +184,7 @@
 		jQuery.support.reliableHiddenOffsets = jQuery.support.reliableHiddenOffsets && tds[0].offsetHeight === 0;
 		div.innerHTML = "";
 
-		document.body.removeChild( div ).style.display = "none";
+		body.removeChild( div ).style.display = "none";
 		div = tds = null;
 	});
 
@@ -186,6 +193,14 @@
 	var eventSupported = function( eventName ) {
 		var el = document.createElement("div");
 		eventName = "on" + eventName;
+
+		// We only care about the case where non-standard event systems
+		// are used, namely in IE. Short-circuiting here helps us to
+		// avoid an eval call (in setAttribute) which can cause CSP
+		// to go haywire. See: https://developer.mozilla.org/en/Security/CSP
+		if ( !el.attachEvent ) {
+			return true;
+		}
 
 		var isSupported = (eventName in el);
 		if ( !isSupported ) {
