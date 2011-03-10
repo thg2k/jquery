@@ -537,29 +537,29 @@ test("end()", function() {
 
 test("length", function() {
 	expect(1);
-	equals( jQuery("p").length, 6, "Get Number of Elements Found" );
+	equals( jQuery("#main p").length, 6, "Get Number of Elements Found" );
 });
 
 test("size()", function() {
 	expect(1);
-	equals( jQuery("p").size(), 6, "Get Number of Elements Found" );
+	equals( jQuery("#main p").size(), 6, "Get Number of Elements Found" );
 });
 
 test("get()", function() {
 	expect(1);
-	same( jQuery("p").get(), q("firstp","ap","sndp","en","sap","first"), "Get All Elements" );
+	same( jQuery("#main p").get(), q("firstp","ap","sndp","en","sap","first"), "Get All Elements" );
 });
 
 test("toArray()", function() {
 	expect(1);
-	same( jQuery("p").toArray(),
+	same( jQuery("#main p").toArray(),
 		q("firstp","ap","sndp","en","sap","first"),
-		"Convert jQuery object to an Array" );
-});
+		"Convert jQuery object to an Array" )
+})
 
 test("get(Number)", function() {
 	expect(2);
-	equals( jQuery("p").get(0), document.getElementById("firstp"), "Get A Single Element" );
+	equals( jQuery("#main p").get(0), document.getElementById("firstp"), "Get A Single Element" );
 	strictEqual( jQuery("#firstp").get(1), undefined, "Try get with index larger elements count" );
 });
 
@@ -567,7 +567,7 @@ test("get(-Number)",function() {
 	expect(2);
 	equals( jQuery("p").get(-1), document.getElementById("first"), "Get a single element with negative index" );
 	strictEqual( jQuery("#firstp").get(-2), undefined, "Try get with index negative index larger then elements count" );
-});
+})
 
 test("each(Function)", function() {
 	expect(1);
@@ -912,253 +912,6 @@ test("jQuery.parseJSON", function(){
 	} catch( e ) {
 		ok( true, "Test malformed JSON string." );
 	}
-});
-
-test("jQuery._Deferred()", function() {
-
-	expect( 10 );
-
-	var deferred,
-		object,
-		test;
-
-	deferred = jQuery._Deferred();
-
-	test = false;
-
-	deferred.done( function( value ) {
-		equals( value , "value" , "Test pre-resolve callback" );
-		test = true;
-	} );
-
-	deferred.resolve( "value" );
-
-	ok( test , "Test pre-resolve callbacks called right away" );
-
-	test = false;
-
-	deferred.done( function( value ) {
-		equals( value , "value" , "Test post-resolve callback" );
-		test = true;
-	} );
-
-	ok( test , "Test post-resolve callbacks called right away" );
-
-	deferred.cancel();
-
-	test = true;
-
-	deferred.done( function() {
-		ok( false , "Cancel was ignored" );
-		test = false;
-	} );
-
-	ok( test , "Test cancel" );
-
-	deferred = jQuery._Deferred().resolve();
-
-	try {
-		deferred.done( function() {
-			throw "Error";
-		} , function() {
-			ok( true , "Test deferred do not cancel on exception" );
-		} );
-	} catch( e ) {
-		strictEqual( e , "Error" , "Test deferred propagates exceptions");
-		deferred.done();
-	}
-
-	test = "";
-	deferred = jQuery._Deferred().done( function() {
-
-		test += "A";
-
-	}, function() {
-
-		test += "B";
-
-	} ).resolve();
-
-	strictEqual( test , "AB" , "Test multiple done parameters" );
-
-	test = "";
-
-	deferred.done( function() {
-
-		deferred.done( function() {
-
-			test += "C";
-
-		} );
-
-		test += "A";
-
-	}, function() {
-
-		test += "B";
-	} );
-
-	strictEqual( test , "ABC" , "Test done callbacks order" );
-
-	deferred = jQuery._Deferred();
-
-	deferred.resolveWith( jQuery , [ document ] ).done( function( doc ) {
-		ok( this === jQuery && arguments.length === 1 && doc === document , "Test fire context & args" );
-	});
-});
-
-test("jQuery.Deferred()", function() {
-
-	expect( 20 );
-
-	jQuery.Deferred( function( defer ) {
-		strictEqual( this , defer , "Defer passed as this & first argument" );
-		this.resolve( "done" );
-	}).then( function( value ) {
-		strictEqual( value , "done" , "Passed function executed" );
-	});
-
-	jQuery.Deferred().resolve().then( function() {
-		ok( true , "Success on resolve" );
-	}, function() {
-		ok( false , "Error on resolve" );
-	});
-
-	jQuery.Deferred().reject().then( function() {
-		ok( false , "Success on reject" );
-	}, function() {
-		ok( true , "Error on reject" );
-	});
-
-	( new jQuery.Deferred( function( defer ) {
-		strictEqual( this , defer , "Defer passed as this & first argument (new)" );
-		this.resolve( "done" );
-	}) ).then( function( value ) {
-		strictEqual( value , "done" , "Passed function executed (new)" );
-	});
-
-	( new jQuery.Deferred() ).resolve().then( function() {
-		ok( true , "Success on resolve (new)" );
-	}, function() {
-		ok( false , "Error on resolve (new)" );
-	});
-
-	( new jQuery.Deferred() ).reject().then( function() {
-		ok( false , "Success on reject (new)" );
-	}, function() {
-		ok( true , "Error on reject (new)" );
-	});
-
-	strictEqual( jQuery.Deferred().resolve( "test" ).invert().then(null,function(value) {
-		strictEqual( value, "test", "Resolved deferred => then fail callback called" );
-	}).fail(function( value ) {
-		strictEqual( value, "test", "Resolved deferred => fail callback called" );
-	}).isRejected(), true, "Invert promise is rejected when deferred is resolved" );
-
-	strictEqual( jQuery.Deferred().reject( "test" ).invert().then(function(value) {
-		strictEqual( value, "test", "Rejected deferred => then done callback called" );
-	}).done(function( value ) {
-		strictEqual( value, "test", "Rejected deferred => done callback called" );
-	}).isResolved(), true, "Invert promise is resolved when deferred is rejected" );
-
-	var tmp = jQuery.Deferred();
-
-	strictEqual( tmp.promise() , tmp.promise() , "Test deferred always return same promise" );
-	strictEqual( tmp.invert() , tmp.invert() , "Test deferred always return same invert" );
-	strictEqual( tmp.promise() , tmp.promise().promise() , "Test deferred's promise always return same promise as deferred" );
-	strictEqual( tmp.promise() , tmp.invert().invert() , "Test deferred's promise is the same as double invert" );
-	strictEqual( tmp.invert() , tmp.invert().promise() , "Test deferred's invert always return same invert as deferred as a promise" );
-	strictEqual( tmp.invert() , tmp.promise().invert() , "Test deferred's promise always return same invert as deferred" );
-});
-
-test("jQuery.when()", function() {
-
-	expect( 23 );
-
-	// Some other objects
-	jQuery.each( {
-
-		"an empty string": "",
-		"a non-empty string": "some string",
-		"zero": 0,
-		"a number other than zero": 1,
-		"true": true,
-		"false": false,
-		"null": null,
-		"undefined": undefined,
-		"a plain object": {}
-
-	} , function( message , value ) {
-
-		ok( jQuery.isFunction( jQuery.when( value ).then( function( resolveValue ) {
-			strictEqual( resolveValue , value , "Test the promise was resolved with " + message );
-		} ).promise ) , "Test " + message + " triggers the creation of a new Promise" );
-
-	} );
-
-	ok( jQuery.isFunction( jQuery.when().then( function( resolveValue ) {
-		strictEqual( resolveValue , undefined , "Test the promise was resolved with no parameter" );
-	} ).promise ) , "Test calling when with no parameter triggers the creation of a new Promise" );
-
-	var cache, i;
-
-	for( i = 1 ; i < 4 ; i++ ) {
-		jQuery.when( cache || jQuery.Deferred( function() {
-			this.resolve( i );
-		}) ).then( function( value ) {
-			strictEqual( value , 1 , "Function executed" + ( i > 1 ? " only once" : "" ) );
-			cache = value;
-		}, function() {
-			ok( false , "Fail called" );
-		});
-	}
-});
-
-test("jQuery.when() - joined", function() {
-
-	expect(14);
-
-	jQuery.when( 1, 2, 3 ).done( function( a, b, c ) {
-		strictEqual( a , 1 , "Test first param is first resolved value - non-observables" );
-		strictEqual( b , 2 , "Test second param is second resolved value - non-observables" );
-		strictEqual( c , 3 , "Test third param is third resolved value - non-observables" );
-	}).fail( function() {
-		ok( false , "Test the created deferred was resolved - non-observables");
-	});
-
-	var successDeferred = jQuery.Deferred().resolve( 1 , 2 , 3 ),
-		errorDeferred = jQuery.Deferred().reject( "error" , "errorParam" );
-
-	jQuery.when( 1 , successDeferred , 3 ).done( function( a, b, c ) {
-		strictEqual( a , 1 , "Test first param is first resolved value - resolved observable" );
-		same( b , [ 1 , 2 , 3 ] , "Test second param is second resolved value - resolved observable" );
-		strictEqual( c , 3 , "Test third param is third resolved value - resolved observable" );
-	}).fail( function() {
-		ok( false , "Test the created deferred was resolved - resolved observable");
-	});
-
-	jQuery.when( 1 , successDeferred.invert() , 3 ).fail( function( a, b, c ) {
-		strictEqual( a , 1 , "Test first param is first rejected value - resolved observable inverted" );
-		same( b , 2 , "Test second param is second rejected value - resolved observable inverted" );
-		strictEqual( c , 3 , "Test third param is third rejected value - resolved observable inverted" );
-	}).done( function() {
-		ok( false , "Test the inverted deferred was rejected - resolved observable inverted");
-	});
-
-	jQuery.when( 1 , errorDeferred , 3 ).done( function() {
-		ok( false , "Test the created deferred was rejected - rejected observable");
-	}).fail( function( error , errorParam ) {
-		strictEqual( error , "error" , "Test first param is first rejected value - rejected observable" );
-		strictEqual( errorParam , "errorParam" , "Test second param is second rejected value - rejected observable" );
-	});
-
-	jQuery.when( 1 , errorDeferred.invert() , 3 ).fail( function() {
-		ok( false , "Test the inverted deferred was resolved - rejected observable inverted");
-	}).done( function( a , b , c ) {
-		strictEqual( a , 1 , "Test first param is first resolved value - rejected observable inverted" );
-		same( b , [ "error", "errorParam" ] , "Test second param is second resolved value - rejected observable inverted" );
-		strictEqual( c , 3 , "Test third param is third resolved value - rejected observable inverted" );
-	});
 });
 
 test("jQuery.sub() - Static Methods", function(){

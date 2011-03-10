@@ -344,14 +344,18 @@ test(".ajax() - retry with jQuery.ajax( this )", function() {
 
 test(".ajax() - headers" , function() {
 
-	expect( 2 );
+	expect( 4 );
 
 	stop();
 
+	jQuery('#foo').ajaxSend(function( evt, xhr ) {
+		xhr.setRequestHeader( "ajax-send", "test" );
+	});
+
 	var requestHeaders = {
-		siMPle: "value",
-		"SometHing-elsE": "other value",
-		OthEr: "something else"
+			siMPle: "value",
+			"SometHing-elsE": "other value",
+			OthEr: "something else"
 		},
 		list = [],
 		i;
@@ -359,22 +363,31 @@ test(".ajax() - headers" , function() {
 	for( i in requestHeaders ) {
 		list.push( i );
 	}
+	list.push( "ajax-send" );
 
 	jQuery.ajax(url("data/headers.php?keys="+list.join( "_" ) ), {
+
 		headers: requestHeaders,
 		success: function( data , _ , xhr ) {
 			var tmp = [];
 			for ( i in requestHeaders ) {
 				tmp.push( i , ": " , requestHeaders[ i ] , "\n" );
 			}
+			tmp.push(  "ajax-send: test\n" );
 			tmp = tmp.join( "" );
 
-			equals( data , tmp , "Headers were sent" );
-			equals( xhr.getResponseHeader( "Sample-Header" ) , "Hello World" , "Sample header received" );
-			start();
+			strictEqual( data , tmp , "Headers were sent" );
+			strictEqual( xhr.getResponseHeader( "Sample-Header" ) , "Hello World" , "Sample header received" );
+			if ( jQuery.browser.mozilla ) {
+				ok( true, "Firefox doesn't support empty headers" );
+			} else {
+				strictEqual( xhr.getResponseHeader( "Empty-Header" ) , "" , "Empty header received" );
+			}
+			strictEqual( xhr.getResponseHeader( "Sample-Header2" ) , "Hello World 2" , "Second sample header received" );
 		},
 		error: function(){ ok(false, "error"); }
-	});
+
+	}).then( start, start );
 
 });
 
@@ -479,7 +492,7 @@ test(".ajax() - hash", function() {
 
 test("jQuery ajax - cross-domain detection", function() {
 
-	expect( 4 );
+	expect( 5 );
 
 	var loc = document.location,
 		otherPort = loc.port === 666 ? 667 : 666,
@@ -490,6 +503,14 @@ test("jQuery ajax - cross-domain detection", function() {
 		url: otherProtocol + "//" + loc.host,
 		beforeSend: function( _ , s ) {
 			ok( s.crossDomain , "Test different protocols are detected as cross-domain" );
+			return false;
+		}
+	});
+
+	jQuery.ajax({
+		url: 'app:/path',
+		beforeSend: function( _ , s ) {
+			ok( s.crossDomain , "Adobe AIR app:/ URL detected as cross-domain" );
 			return false;
 		}
 	});
@@ -524,22 +545,7 @@ test("jQuery ajax - cross-domain detection", function() {
 
 });
 
-test(".ajax() - 304", function() {
-	expect( 1 );
-	stop();
-
-	jQuery.ajax({
-		url: url("data/notmodified.php"),
-		success: function(){ ok(true, "304 ok"); },
-		// Do this because opera simply refuses to implement 304 handling :(
-		// A feature-driven way of detecting this would be appreciated
-		// See: http://gist.github.com/599419
-		error: function(){ ok(jQuery.browser.opera, "304 not ok "); },
-		complete: function(xhr){ start(); }
-	});
-});
-
-test(".load()) - 404 error callbacks", function() {
+test(".load() - 404 error callbacks", function() {
 	expect( 6 );
 	stop();
 
@@ -930,7 +936,7 @@ test("serialize()", function() {
 });
 
 test("jQuery.param()", function() {
-	expect(25);
+	expect(24);
 
 	equals( !jQuery.ajaxSettings.traditional, true, "traditional flag, falsy by default" );
 
@@ -967,8 +973,6 @@ test("jQuery.param()", function() {
 
 	// #7945
 	equals( jQuery.param({"jquery": "1.4.2"}), "jquery=1.4.2", "Check that object with a jQuery property get serialized correctly" );
-
-	equals( jQuery.param(jQuery("#form :input")), "action=Test&text2=Test&radio1=on&radio2=on&check=on&=on&hidden=&foo%5Bbar%5D=&name=name&search=search&button=&=foobar&select1=&select2=3&select3=1&select4=1&select5=3", "Make sure jQuery objects are properly serialized");
 
 	jQuery.ajaxSetup({ traditional: true });
 
@@ -1202,6 +1206,21 @@ test("load(String, String, Function)", function() {
 		var $get = jQuery(this).find('#get');
 		equals( $get.find('#foo').text(), '3', 'Check if a string of data is passed correctly');
 		equals( $get.find('#bar').text(), 'ok', 'Check if a	 of data is passed correctly');
+		start();
+	});
+});
+
+test("jQuery.get(String, Function) - data in ajaxSettings (#8277)", function() {
+	expect(1);
+	stop();
+	jQuery.ajaxSetup({
+		data: "helloworld"
+	});
+	jQuery.get(url('data/echoQuery.php'), function(data) {
+		ok( /helloworld$/.test( data ), 'Data from ajaxSettings was used');
+		jQuery.ajaxSetup({
+			data: null
+		});
 		start();
 	});
 });
@@ -2174,6 +2193,53 @@ test("jQuery.ajax - transitive conversions", function() {
 		})
 
 	).then( start , start );
+
+});
+
+test("jQuery.ajax - overrideMimeType", function() {
+
+	expect( 2 );
+
+	stop();
+
+	jQuery.when(
+
+		jQuery.ajax( url("data/json.php") , {
+			beforeSend: function( xhr ) {
+				xhr.overrideMimeType( "application/json" );
+			},
+			success: function( json ) {
+				ok( json.data , "Mimetype overriden using beforeSend" );
+			}
+		}),
+
+		jQuery.ajax( url("data/json.php") , {
+			mimeType: "application/json",
+			success: function( json ) {
+				ok( json.data , "Mimetype overriden using mimeType option" );
+			}
+		})
+
+	).then( start , start );
+
+});
+
+test("jQuery.ajax - abort in prefilter", function() {
+
+	expect( 1 );
+
+	jQuery.ajaxPrefilter(function( options, _, jqXHR ) {
+		if ( options.abortInPrefilter ) {
+			jqXHR.abort();
+		}
+	});
+
+	strictEqual( jQuery.ajax({
+		abortInPrefilter: true,
+		error: function() {
+			ok( false, "error callback called" );
+		}
+	}), false, "Request was properly aborted early by the prefilter" );
 
 });
 

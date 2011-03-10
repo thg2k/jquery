@@ -9,8 +9,10 @@ DIST_DIR = ${PREFIX}/dist
 
 JS_ENGINE ?= `which node nodejs`
 COMPILER = ${JS_ENGINE} ${BUILD_DIR}/uglify.js --unsafe
+POST_COMPILER = ${JS_ENGINE} ${BUILD_DIR}/post-compile.js
 
 BASE_FILES = ${SRC_DIR}/core.js\
+	${SRC_DIR}/deferred.js\
 	${SRC_DIR}/support.js\
 	${SRC_DIR}/data.js\
 	${SRC_DIR}/queue.js\
@@ -106,8 +108,8 @@ ${JQ_MIN}: jquery
 	@@if test ! -z ${JS_ENGINE}; then \
 		echo "Minifying jQuery" ${JQ_MIN}; \
 		${COMPILER} ${JQ} > ${JQ_MIN}.tmp; \
-		sed '$ s#^\( \*/\)\(.\+\)#\1\n\2;#' ${JQ_MIN}.tmp > ${JQ_MIN}; \
-		rm -rf ${JQ_MIN}.tmp; \
+		${POST_COMPILER} ${JQ_MIN}.tmp > ${JQ_MIN}; \
+		rm -f ${JQ_MIN}.tmp; \
 	else \
 		echo "You must have NodeJS installed in order to minify jQuery."; \
 	fi
